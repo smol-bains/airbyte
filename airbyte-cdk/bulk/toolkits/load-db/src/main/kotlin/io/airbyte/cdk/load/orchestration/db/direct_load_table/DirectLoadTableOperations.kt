@@ -5,6 +5,7 @@
 package io.airbyte.cdk.load.orchestration.db.direct_load_table
 
 import io.airbyte.cdk.load.command.DestinationStream
+import io.airbyte.cdk.load.orchestration.db.ColumnNameMapping
 import io.airbyte.cdk.load.orchestration.db.DatabaseHandler
 import io.airbyte.cdk.load.orchestration.db.TableName
 
@@ -16,6 +17,7 @@ interface DirectLoadTableNativeOperations {
     fun ensureSchemaMatches(
         stream: DestinationStream,
         tableName: TableName,
+        columnNameMapping: ColumnNameMapping,
     )
 
     /**
@@ -39,6 +41,7 @@ interface DirectLoadTableSqlOperations {
     fun createTable(
         stream: DestinationStream,
         tableName: TableName,
+        columnNameMapping: ColumnNameMapping,
         replace: Boolean,
     )
 
@@ -48,11 +51,14 @@ interface DirectLoadTableSqlOperations {
     )
 
     fun copyTable(
+        columnNameMapping: ColumnNameMapping,
         sourceTableName: TableName,
         targetTableName: TableName,
     )
 
     fun upsertTable(
+        stream: DestinationStream,
+        columnNameMapping: ColumnNameMapping,
         sourceTableName: TableName,
         targetTableName: TableName,
     )
@@ -67,9 +73,12 @@ class DefaultDirectLoadTableSqlOperations(
     override fun createTable(
         stream: DestinationStream,
         tableName: TableName,
+        columnNameMapping: ColumnNameMapping,
         replace: Boolean,
     ) {
-        handler.execute(generator.createTable(stream, tableName, replace = replace))
+        handler.execute(
+            generator.createTable(stream, tableName, columnNameMapping, replace = replace)
+        )
     }
 
     override fun overwriteTable(
@@ -85,11 +94,13 @@ class DefaultDirectLoadTableSqlOperations(
     }
 
     override fun copyTable(
+        columnNameMapping: ColumnNameMapping,
         sourceTableName: TableName,
         targetTableName: TableName,
     ) {
         handler.execute(
             generator.copyTable(
+                columnNameMapping,
                 sourceTableName = sourceTableName,
                 targetTableName = targetTableName,
             )
@@ -97,11 +108,15 @@ class DefaultDirectLoadTableSqlOperations(
     }
 
     override fun upsertTable(
+        stream: DestinationStream,
+        columnNameMapping: ColumnNameMapping,
         sourceTableName: TableName,
         targetTableName: TableName,
     ) {
         handler.execute(
             generator.upsertTable(
+                stream,
+                columnNameMapping,
                 sourceTableName = sourceTableName,
                 targetTableName = targetTableName,
             )
