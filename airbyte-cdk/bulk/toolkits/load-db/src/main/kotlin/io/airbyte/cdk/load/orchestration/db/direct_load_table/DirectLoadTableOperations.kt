@@ -29,6 +29,13 @@ class DirectLoadTableOperations(
         TODO()
     }
 
+    /**
+     * Replace the targetTable with the sourceTable. This is typically something like
+     * ```
+     * DROP TABLE target;
+     * ALTER TABLE source RENAME TO target;
+     * ```
+     */
     fun overwriteTable(
         sourceTableName: TableName,
         targetTableName: TableName,
@@ -50,6 +57,13 @@ class DirectLoadTableOperations(
         TODO()
     }
 
+    /**
+     * Return the generation ID of an arbitrary record from the table. May assume the table exists
+     * and is nonempty.
+     *
+     * If an existing record has null generation, treat that record as belonging to generation 0.
+     * These records predate the refreshes project.
+     */
     fun getGenerationId(tableName: TableName): Long {
         TODO()
     }

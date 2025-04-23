@@ -79,11 +79,11 @@ class DirectLoadTableAppendTruncateStreamLoader(
         if (initialStatus.tempTable != null) {
             if (
                 initialStatus.tempTable.isEmpty ||
-                    tableOperations.getGenerationId(tempTableName) < stream.minimumGenerationId
+                    tableOperations.getGenerationId(tempTableName) >= stream.minimumGenerationId
             ) {
-                tableOperations.createTable(stream, tempTableName, replace = true)
-            } else {
                 tableOperations.ensureSchemaMatches(stream, tempTableName)
+            } else {
+                tableOperations.createTable(stream, tempTableName, replace = true)
             }
             writingToTempTable = true
             streamStateStore.put(stream.descriptor, DirectLoadTableExecutionConfig(tempTableName))
@@ -91,17 +91,15 @@ class DirectLoadTableAppendTruncateStreamLoader(
             if (initialStatus.realTable == null) {
                 tableOperations.createTable(stream, realTableName, replace = true)
                 writingToTempTable = false
-            } else if (initialStatus.realTable.isEmpty) {
+            } else if (
+                initialStatus.realTable.isEmpty ||
+                    tableOperations.getGenerationId(realTableName) >= stream.minimumGenerationId
+            ) {
                 tableOperations.ensureSchemaMatches(stream, realTableName)
                 writingToTempTable = false
-            } else if (
-                tableOperations.getGenerationId(realTableName) < stream.minimumGenerationId
-            ) {
+            } else {
                 tableOperations.createTable(stream, tempTableName, replace = true)
                 writingToTempTable = true
-            } else {
-                tableOperations.ensureSchemaMatches(stream, realTableName)
-                writingToTempTable = false
             }
         }
 
@@ -118,7 +116,6 @@ class DirectLoadTableAppendTruncateStreamLoader(
                 sourceTableName = tempTableName,
                 targetTableName = realTableName
             )
-            tableOperations.dropTable(tempTableName)
         }
     }
 }
@@ -133,37 +130,46 @@ class DirectLoadTableDedupTruncateStreamLoader(
 ) : StreamLoader {
     // can't use lateinit because of weird kotlin reasons.
     // this field is always overwritten in start().
-    private var finalTableKnownToBeWrongGeneration: Boolean = false
+    private var finalTableMaybeCorrectGeneration: Boolean = false
 
     override suspend fun start() {
         if (initialStatus.tempTable != null) {
             if (
                 initialStatus.tempTable.isEmpty ||
-                    tableOperations.getGenerationId(tempTableName) < stream.minimumGenerationId
+                    tableOperations.getGenerationId(tempTableName) >= stream.minimumGenerationId
             ) {
-                tableOperations.createTable(stream, tempTableName, replace = true)
-            } else {
                 tableOperations.ensureSchemaMatches(stream, tempTableName)
+            } else {
+                tableOperations.createTable(stream, tempTableName, replace = true)
             }
-            finalTableKnownToBeWrongGeneration = true
+            finalTableMaybeCorrectGeneration = false
         } else {
             tableOperations.createTable(stream, tempTableName, replace = true)
-            finalTableKnownToBeWrongGeneration = false
+            finalTableMaybeCorrectGeneration = true
         }
         streamStateStore.put(stream.descriptor, DirectLoadTableExecutionConfig(tempTableName))
     }
 
     override suspend fun close(hadNonzeroRecords: Boolean, streamFailure: StreamProcessingFailed?) {
-        if (!finalTableKnownToBeWrongGeneration) {
-            if (initialStatus.realTable != null && !initialStatus.realTable.isEmpty) {
-                if (tableOperations.getGenerationId(realTableName) < stream.minimumGenerationId) {
-                    tableOperations.upsertTable(
-                        sourceTableName = tempTableName,
-                        targetTableName = realTableName
-                    )
-                    tableOperations.dropTable(tempTableName)
-                    return
-                }
+        if (finalTableMaybeCorrectGeneration) {
+            if (initialStatus.realTable == null) {
+                tableOperations.createTable(stream, realTableName, replace = true)
+                tableOperations.upsertTable(
+                    sourceTableName = tempTableName,
+                    targetTableName = realTableName
+                )
+                tableOperations.dropTable(tempTableName)
+                return
+            } else if (
+                initialStatus.realTable.isEmpty ||
+                    tableOperations.getGenerationId(realTableName) >= stream.minimumGenerationId
+            ) {
+                tableOperations.upsertTable(
+                    sourceTableName = tempTableName,
+                    targetTableName = realTableName
+                )
+                tableOperations.dropTable(tempTableName)
+                return
             }
         }
 
@@ -178,7 +184,6 @@ class DirectLoadTableDedupTruncateStreamLoader(
                 sourceTableName = tempTempTable,
                 targetTableName = realTableName
             )
-            tableOperations.dropTable(tempTableName)
         }
     }
 }
