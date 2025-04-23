@@ -20,7 +20,8 @@ class DirectLoadTableWriter(
     private val names: TableCatalog,
     private val stateGatherer: DatabaseInitialStatusGatherer<DirectLoadInitialStatus>,
     private val destinationHandler: DatabaseHandler,
-    private val tableOperations: DirectLoadTableOperations,
+    private val nativeTableOperations: DirectLoadTableNativeOperations,
+    private val sqlTableOperations: DirectLoadTableSqlOperations,
     private val streamStateStore: StreamStateStore<DirectLoadTableExecutionConfig>,
 ) : DestinationWriter {
     private lateinit var initialStatuses: Map<DestinationStream, DirectLoadInitialStatus>
@@ -46,7 +47,8 @@ class DirectLoadTableWriter(
                             initialStatus,
                             realTableName = realTableName,
                             tempTableName = tempTableName,
-                            tableOperations,
+                            nativeTableOperations,
+                            sqlTableOperations,
                             streamStateStore,
                         )
                     is Dedupe ->
@@ -55,7 +57,8 @@ class DirectLoadTableWriter(
                             initialStatus,
                             realTableName = realTableName,
                             tempTableName = tempTableName,
-                            tableOperations,
+                            nativeTableOperations,
+                            sqlTableOperations,
                             streamStateStore,
                         )
                 }
@@ -68,7 +71,8 @@ class DirectLoadTableWriter(
                             initialStatus,
                             realTableName = realTableName,
                             tempTableName = tempTableName,
-                            tableOperations,
+                            nativeTableOperations,
+                            sqlTableOperations,
                             streamStateStore,
                         )
                     is Dedupe ->
@@ -77,7 +81,8 @@ class DirectLoadTableWriter(
                             initialStatus,
                             realTableName = realTableName,
                             tempTableName = tempTableName,
-                            tableOperations,
+                            nativeTableOperations,
+                            sqlTableOperations,
                             streamStateStore,
                         )
                 }
