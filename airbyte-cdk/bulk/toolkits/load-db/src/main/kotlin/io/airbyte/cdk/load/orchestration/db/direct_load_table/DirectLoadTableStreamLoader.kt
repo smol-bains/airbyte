@@ -8,6 +8,7 @@ import io.airbyte.cdk.load.command.DestinationStream
 import io.airbyte.cdk.load.orchestration.db.TableName
 import io.airbyte.cdk.load.state.StreamProcessingFailed
 import io.airbyte.cdk.load.write.StreamLoader
+import io.airbyte.cdk.load.write.StreamStateStore
 
 class DirectLoadTableAppendStreamLoader(
     override val stream: DestinationStream,
@@ -15,6 +16,7 @@ class DirectLoadTableAppendStreamLoader(
     private val realTableName: TableName,
     private val tempTableName: TableName,
     private val tableOperations: DirectLoadTableOperations,
+    private val streamStateStore: StreamStateStore<DirectLoadTableExecutionConfig>,
 ) : StreamLoader {
     override suspend fun start() {
         tableOperations.ensureSchemaMatches(stream, realTableName)
@@ -26,6 +28,7 @@ class DirectLoadTableAppendStreamLoader(
             )
             tableOperations.dropTable(tempTableName)
         }
+        streamStateStore.put(stream.descriptor, DirectLoadTableExecutionConfig(realTableName))
     }
 
     override suspend fun close(hadNonzeroRecords: Boolean, streamFailure: StreamProcessingFailed?) {
@@ -39,6 +42,7 @@ class DirectLoadTableDedupStreamLoader(
     private val realTableName: TableName,
     private val tempTableName: TableName,
     private val tableOperations: DirectLoadTableOperations,
+    private val streamStateStore: StreamStateStore<DirectLoadTableExecutionConfig>,
 ) : StreamLoader {
     override suspend fun start() {
         if (initialStatus.tempTable != null) {
@@ -46,6 +50,7 @@ class DirectLoadTableDedupStreamLoader(
         } else {
             tableOperations.createTable(stream, tempTableName, replace = true)
         }
+        streamStateStore.put(stream.descriptor, DirectLoadTableExecutionConfig(tempTableName))
     }
 
     override suspend fun close(hadNonzeroRecords: Boolean, streamFailure: StreamProcessingFailed?) {
@@ -64,6 +69,7 @@ class DirectLoadTableAppendTruncateStreamLoader(
     private val realTableName: TableName,
     private val tempTableName: TableName,
     private val tableOperations: DirectLoadTableOperations,
+    private val streamStateStore: StreamStateStore<DirectLoadTableExecutionConfig>,
 ) : StreamLoader {
     // can't use lateinit because of weird kotlin reasons.
     // this field is always overwritten in start().
@@ -80,6 +86,7 @@ class DirectLoadTableAppendTruncateStreamLoader(
                 tableOperations.ensureSchemaMatches(stream, tempTableName)
             }
             writingToTempTable = true
+            streamStateStore.put(stream.descriptor, DirectLoadTableExecutionConfig(tempTableName))
         } else {
             if (initialStatus.realTable == null) {
                 tableOperations.createTable(stream, realTableName, replace = true)
@@ -96,6 +103,12 @@ class DirectLoadTableAppendTruncateStreamLoader(
                 tableOperations.ensureSchemaMatches(stream, realTableName)
                 writingToTempTable = false
             }
+        }
+
+        if (writingToTempTable) {
+            streamStateStore.put(stream.descriptor, DirectLoadTableExecutionConfig(tempTableName))
+        } else {
+            streamStateStore.put(stream.descriptor, DirectLoadTableExecutionConfig(realTableName))
         }
     }
 
@@ -116,6 +129,7 @@ class DirectLoadTableDedupTruncateStreamLoader(
     private val realTableName: TableName,
     private val tempTableName: TableName,
     private val tableOperations: DirectLoadTableOperations,
+    private val streamStateStore: StreamStateStore<DirectLoadTableExecutionConfig>,
 ) : StreamLoader {
     // can't use lateinit because of weird kotlin reasons.
     // this field is always overwritten in start().
@@ -136,6 +150,7 @@ class DirectLoadTableDedupTruncateStreamLoader(
             tableOperations.createTable(stream, tempTableName, replace = true)
             finalTableKnownToBeWrongGeneration = false
         }
+        streamStateStore.put(stream.descriptor, DirectLoadTableExecutionConfig(tempTableName))
     }
 
     override suspend fun close(hadNonzeroRecords: Boolean, streamFailure: StreamProcessingFailed?) {

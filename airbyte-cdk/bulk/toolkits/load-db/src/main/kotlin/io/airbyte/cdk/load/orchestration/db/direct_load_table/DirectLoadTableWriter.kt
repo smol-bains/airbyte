@@ -14,12 +14,14 @@ import io.airbyte.cdk.load.orchestration.db.DatabaseInitialStatusGatherer
 import io.airbyte.cdk.load.orchestration.db.legacy_typing_deduping.TableCatalog
 import io.airbyte.cdk.load.write.DestinationWriter
 import io.airbyte.cdk.load.write.StreamLoader
+import io.airbyte.cdk.load.write.StreamStateStore
 
 class DirectLoadTableWriter(
     private val names: TableCatalog,
     private val stateGatherer: DatabaseInitialStatusGatherer<DirectLoadInitialStatus>,
     private val destinationHandler: DatabaseHandler,
     private val tableOperations: DirectLoadTableOperations,
+    private val streamStateStore: StreamStateStore<DirectLoadTableExecutionConfig>,
 ) : DestinationWriter {
     private lateinit var initialStatuses: Map<DestinationStream, DirectLoadInitialStatus>
     override suspend fun setup() {
@@ -45,6 +47,7 @@ class DirectLoadTableWriter(
                             realTableName = realTableName,
                             tempTableName = tempTableName,
                             tableOperations,
+                            streamStateStore,
                         )
                     is Dedupe ->
                         DirectLoadTableDedupStreamLoader(
@@ -53,6 +56,7 @@ class DirectLoadTableWriter(
                             realTableName = realTableName,
                             tempTableName = tempTableName,
                             tableOperations,
+                            streamStateStore,
                         )
                 }
             stream.generationId ->
@@ -65,6 +69,7 @@ class DirectLoadTableWriter(
                             realTableName = realTableName,
                             tempTableName = tempTableName,
                             tableOperations,
+                            streamStateStore,
                         )
                     is Dedupe ->
                         DirectLoadTableDedupTruncateStreamLoader(
@@ -73,6 +78,7 @@ class DirectLoadTableWriter(
                             realTableName = realTableName,
                             tempTableName = tempTableName,
                             tableOperations,
+                            streamStateStore,
                         )
                 }
             else ->
