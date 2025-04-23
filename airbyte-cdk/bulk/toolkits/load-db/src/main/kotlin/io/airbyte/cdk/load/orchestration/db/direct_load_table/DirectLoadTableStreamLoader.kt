@@ -5,7 +5,7 @@
 package io.airbyte.cdk.load.orchestration.db.direct_load_table
 
 import io.airbyte.cdk.load.command.DestinationStream
-import io.airbyte.cdk.load.orchestration.TableName
+import io.airbyte.cdk.load.orchestration.db.TableName
 import io.airbyte.cdk.load.state.StreamProcessingFailed
 import io.airbyte.cdk.load.write.StreamLoader
 

@@ -4,18 +4,21 @@
 
 package io.airbyte.cdk.load.orchestration.db.direct_load_table
 
+import io.airbyte.cdk.SystemErrorException
+import io.airbyte.cdk.load.command.Append
+import io.airbyte.cdk.load.command.Dedupe
 import io.airbyte.cdk.load.command.DestinationStream
-import io.airbyte.cdk.load.orchestration.ColumnNameMapping
-import io.airbyte.cdk.load.orchestration.DestinationHandler
-import io.airbyte.cdk.load.orchestration.DestinationInitialStatusGatherer
-import io.airbyte.cdk.load.orchestration.TableNames
+import io.airbyte.cdk.load.command.Overwrite
+import io.airbyte.cdk.load.orchestration.db.DatabaseHandler
+import io.airbyte.cdk.load.orchestration.db.DatabaseInitialStatusGatherer
+import io.airbyte.cdk.load.orchestration.db.legacy_typing_deduping.TableCatalog
 import io.airbyte.cdk.load.write.DestinationWriter
 import io.airbyte.cdk.load.write.StreamLoader
 
 class DirectLoadTableWriter(
-    private val names: Map<DestinationStream, Pair<TableNames, ColumnNameMapping>>,
-    private val stateGatherer: DestinationInitialStatusGatherer<DirectLoadInitialStatus>,
-    private val destinationHandler: DestinationHandler,
+    private val names: TableCatalog,
+    private val stateGatherer: DatabaseInitialStatusGatherer<DirectLoadInitialStatus>,
+    private val destinationHandler: DatabaseHandler,
     private val tableOperations: DirectLoadTableOperations,
 ) : DestinationWriter {
     private lateinit var initialStatuses: Map<DestinationStream, DirectLoadInitialStatus>
@@ -28,6 +31,54 @@ class DirectLoadTableWriter(
     }
 
     override fun createStreamLoader(stream: DestinationStream): StreamLoader {
-        return DirectLoadTableStreamLoader(stream, tableOperations)
+        val initialStatus = initialStatuses[stream]!!
+        val realTableName = names[stream]!!.tableNames.finalTableName!!
+        val tempTableName = realTableName.asTempTable()
+        return when (stream.minimumGenerationId) {
+            0L ->
+                when (stream.importType) {
+                    Append,
+                    Overwrite ->
+                        DirectLoadTableAppendStreamLoader(
+                            stream,
+                            initialStatus,
+                            realTableName = realTableName,
+                            tempTableName = tempTableName,
+                            tableOperations,
+                        )
+                    is Dedupe ->
+                        DirectLoadTableDedupStreamLoader(
+                            stream,
+                            initialStatus,
+                            realTableName = realTableName,
+                            tempTableName = tempTableName,
+                            tableOperations,
+                        )
+                }
+            stream.generationId ->
+                when (stream.importType) {
+                    Append,
+                    Overwrite ->
+                        DirectLoadTableAppendTruncateStreamLoader(
+                            stream,
+                            initialStatus,
+                            realTableName = realTableName,
+                            tempTableName = tempTableName,
+                            tableOperations,
+                        )
+                    is Dedupe ->
+                        DirectLoadTableDedupTruncateStreamLoader(
+                            stream,
+                            initialStatus,
+                            realTableName = realTableName,
+                            tempTableName = tempTableName,
+                            tableOperations,
+                        )
+                }
+            else ->
+                throw SystemErrorException(
+                    "Cannot execute a hybrid refresh - current generation ${stream.generationId}; minimum generation ${stream.minimumGenerationId}"
+                )
+        }
     }
 }
