@@ -25,6 +25,8 @@ import io.airbyte.integrations.destination.bigquery.spec.BigqueryConfiguration
 import io.airbyte.integrations.destination.bigquery.typing_deduping.BigQueryDatabaseHandler
 import io.airbyte.integrations.destination.bigquery.typing_deduping.BigQuerySqlGenerator
 import io.airbyte.integrations.destination.bigquery.typing_deduping.BigqueryDatabaseInitialStatusGatherer
+import io.airbyte.integrations.destination.bigquery.write.BigqueryDirectLoadTableExistenceChecker
+import io.airbyte.integrations.destination.bigquery.write.BigqueryDirectLoadTableNativeOperations
 import io.airbyte.integrations.destination.bigquery.write.bulk_loader.BigqueryBulkLoadConfiguration
 import io.airbyte.integrations.destination.bigquery.write.bulk_loader.BigqueryConfiguredForBulkLoad
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -77,10 +79,13 @@ class BigqueryBeansFactory {
             names,
             BigqueryDatabaseInitialStatusGatherer(bigquery),
             destinationHandler,
-            TODO(),
+            BigqueryDirectLoadTableNativeOperations(bigquery),
             sqlTableOperations,
             streamStateStore,
-            DefaultDirectLoadTableTempTableNameMigration(TODO(), sqlTableOperations)
+            DefaultDirectLoadTableTempTableNameMigration(
+                BigqueryDirectLoadTableExistenceChecker(bigquery),
+                sqlTableOperations,
+            )
         )
     }
 
