@@ -5,7 +5,7 @@
 package io.airbyte.cdk.load.orchestration.db
 
 import io.airbyte.cdk.load.command.DestinationStream
-import io.airbyte.cdk.load.orchestration.TableNames.Companion.TMP_TABLE_SUFFIX
+import io.airbyte.cdk.load.orchestration.db.TableNames.Companion.TMP_TABLE_SUFFIX
 import org.apache.commons.codec.digest.DigestUtils
 
 data class TableNames(

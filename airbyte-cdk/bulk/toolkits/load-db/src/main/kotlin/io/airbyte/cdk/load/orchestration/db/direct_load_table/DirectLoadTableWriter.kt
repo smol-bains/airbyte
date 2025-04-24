@@ -44,8 +44,10 @@ class DirectLoadTableWriter(
 
     override fun createStreamLoader(stream: DestinationStream): StreamLoader {
         val initialStatus = initialStatuses[stream]!!
-        val realTableName = names[stream]!!.tableNames.finalTableName!!
+        val tableNameInfo = names[stream]!!
+        val realTableName = tableNameInfo.tableNames.finalTableName!!
         val tempTableName = realTableName.asTempTable()
+        val columnNameMapping = tableNameInfo.columnNameMapping
         return when (stream.minimumGenerationId) {
             0L ->
                 when (stream.importType) {
@@ -56,6 +58,7 @@ class DirectLoadTableWriter(
                             initialStatus,
                             realTableName = realTableName,
                             tempTableName = tempTableName,
+                            columnNameMapping,
                             nativeTableOperations,
                             sqlTableOperations,
                             streamStateStore,
@@ -66,6 +69,7 @@ class DirectLoadTableWriter(
                             initialStatus,
                             realTableName = realTableName,
                             tempTableName = tempTableName,
+                            columnNameMapping,
                             nativeTableOperations,
                             sqlTableOperations,
                             streamStateStore,
@@ -80,6 +84,7 @@ class DirectLoadTableWriter(
                             initialStatus,
                             realTableName = realTableName,
                             tempTableName = tempTableName,
+                            columnNameMapping,
                             nativeTableOperations,
                             sqlTableOperations,
                             streamStateStore,
@@ -90,6 +95,7 @@ class DirectLoadTableWriter(
                             initialStatus,
                             realTableName = realTableName,
                             tempTableName = tempTableName,
+                            columnNameMapping,
                             nativeTableOperations,
                             sqlTableOperations,
                             streamStateStore,

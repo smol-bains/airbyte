@@ -5,6 +5,7 @@
 package io.airbyte.cdk.load.orchestration.db.direct_load_table
 
 import io.airbyte.cdk.load.command.DestinationStream
+import io.airbyte.cdk.load.orchestration.db.ColumnNameMapping
 import io.airbyte.cdk.load.orchestration.db.TableName
 import io.airbyte.cdk.load.state.StreamProcessingFailed
 import io.airbyte.cdk.load.write.StreamLoader
@@ -15,17 +16,19 @@ class DirectLoadTableAppendStreamLoader(
     private val initialStatus: DirectLoadInitialStatus,
     private val realTableName: TableName,
     private val tempTableName: TableName,
+    private val columnNameMapping: ColumnNameMapping,
     private val nativeTableOperations: DirectLoadTableNativeOperations,
     private val sqlTableOperations: DirectLoadTableSqlOperations,
     private val streamStateStore: StreamStateStore<DirectLoadTableExecutionConfig>,
 ) : StreamLoader {
     override suspend fun start() {
-        nativeTableOperations.ensureSchemaMatches(stream, realTableName)
+        nativeTableOperations.ensureSchemaMatches(stream, realTableName, columnNameMapping)
         if (initialStatus.tempTable != null) {
-            nativeTableOperations.ensureSchemaMatches(stream, tempTableName)
+            nativeTableOperations.ensureSchemaMatches(stream, tempTableName, columnNameMapping)
             sqlTableOperations.copyTable(
+                columnNameMapping,
                 sourceTableName = tempTableName,
-                targetTableName = realTableName
+                targetTableName = realTableName,
             )
             sqlTableOperations.dropTable(tempTableName)
         }
@@ -42,22 +45,25 @@ class DirectLoadTableDedupStreamLoader(
     private val initialStatus: DirectLoadInitialStatus,
     private val realTableName: TableName,
     private val tempTableName: TableName,
+    private val columnNameMapping: ColumnNameMapping,
     private val nativeTableOperations: DirectLoadTableNativeOperations,
     private val sqlTableOperations: DirectLoadTableSqlOperations,
     private val streamStateStore: StreamStateStore<DirectLoadTableExecutionConfig>,
 ) : StreamLoader {
     override suspend fun start() {
         if (initialStatus.tempTable != null) {
-            nativeTableOperations.ensureSchemaMatches(stream, tempTableName)
+            nativeTableOperations.ensureSchemaMatches(stream, tempTableName, columnNameMapping)
         } else {
-            sqlTableOperations.createTable(stream, tempTableName, replace = true)
+            sqlTableOperations.createTable(stream, tempTableName, columnNameMapping, replace = true)
         }
         streamStateStore.put(stream.descriptor, DirectLoadTableExecutionConfig(tempTableName))
     }
 
     override suspend fun close(hadNonzeroRecords: Boolean, streamFailure: StreamProcessingFailed?) {
-        nativeTableOperations.ensureSchemaMatches(stream, realTableName)
+        nativeTableOperations.ensureSchemaMatches(stream, realTableName, columnNameMapping)
         sqlTableOperations.upsertTable(
+            stream,
+            columnNameMapping,
             sourceTableName = tempTableName,
             targetTableName = realTableName,
         )
@@ -70,6 +76,7 @@ class DirectLoadTableAppendTruncateStreamLoader(
     private val initialStatus: DirectLoadInitialStatus,
     private val realTableName: TableName,
     private val tempTableName: TableName,
+    private val columnNameMapping: ColumnNameMapping,
     private val nativeTableOperations: DirectLoadTableNativeOperations,
     private val sqlTableOperations: DirectLoadTableSqlOperations,
     private val streamStateStore: StreamStateStore<DirectLoadTableExecutionConfig>,
@@ -85,25 +92,40 @@ class DirectLoadTableAppendTruncateStreamLoader(
                     nativeTableOperations.getGenerationId(tempTableName) >=
                         stream.minimumGenerationId
             ) {
-                nativeTableOperations.ensureSchemaMatches(stream, tempTableName)
+                nativeTableOperations.ensureSchemaMatches(stream, tempTableName, columnNameMapping)
             } else {
-                sqlTableOperations.createTable(stream, tempTableName, replace = true)
+                sqlTableOperations.createTable(
+                    stream,
+                    tempTableName,
+                    columnNameMapping,
+                    replace = true
+                )
             }
             writingToTempTable = true
             streamStateStore.put(stream.descriptor, DirectLoadTableExecutionConfig(tempTableName))
         } else {
             if (initialStatus.realTable == null) {
-                sqlTableOperations.createTable(stream, realTableName, replace = true)
+                sqlTableOperations.createTable(
+                    stream,
+                    realTableName,
+                    columnNameMapping,
+                    replace = true
+                )
                 writingToTempTable = false
             } else if (
                 initialStatus.realTable.isEmpty ||
                     nativeTableOperations.getGenerationId(realTableName) >=
                         stream.minimumGenerationId
             ) {
-                nativeTableOperations.ensureSchemaMatches(stream, realTableName)
+                nativeTableOperations.ensureSchemaMatches(stream, realTableName, columnNameMapping)
                 writingToTempTable = false
             } else {
-                sqlTableOperations.createTable(stream, tempTableName, replace = true)
+                sqlTableOperations.createTable(
+                    stream,
+                    tempTableName,
+                    columnNameMapping,
+                    replace = true
+                )
                 writingToTempTable = true
             }
         }
@@ -130,6 +152,7 @@ class DirectLoadTableDedupTruncateStreamLoader(
     private val initialStatus: DirectLoadInitialStatus,
     private val realTableName: TableName,
     private val tempTableName: TableName,
+    private val columnNameMapping: ColumnNameMapping,
     private val nativeTableOperations: DirectLoadTableNativeOperations,
     private val sqlTableOperations: DirectLoadTableSqlOperations,
     private val streamStateStore: StreamStateStore<DirectLoadTableExecutionConfig>,
@@ -145,13 +168,18 @@ class DirectLoadTableDedupTruncateStreamLoader(
                     nativeTableOperations.getGenerationId(tempTableName) >=
                         stream.minimumGenerationId
             ) {
-                nativeTableOperations.ensureSchemaMatches(stream, tempTableName)
+                nativeTableOperations.ensureSchemaMatches(stream, tempTableName, columnNameMapping)
             } else {
-                sqlTableOperations.createTable(stream, tempTableName, replace = true)
+                sqlTableOperations.createTable(
+                    stream,
+                    tempTableName,
+                    columnNameMapping,
+                    replace = true
+                )
             }
             finalTableMaybeCorrectGeneration = false
         } else {
-            sqlTableOperations.createTable(stream, tempTableName, replace = true)
+            sqlTableOperations.createTable(stream, tempTableName, columnNameMapping, replace = true)
             finalTableMaybeCorrectGeneration = true
         }
         streamStateStore.put(stream.descriptor, DirectLoadTableExecutionConfig(tempTableName))
@@ -160,10 +188,17 @@ class DirectLoadTableDedupTruncateStreamLoader(
     override suspend fun close(hadNonzeroRecords: Boolean, streamFailure: StreamProcessingFailed?) {
         if (finalTableMaybeCorrectGeneration) {
             if (initialStatus.realTable == null) {
-                sqlTableOperations.createTable(stream, realTableName, replace = true)
+                sqlTableOperations.createTable(
+                    stream,
+                    realTableName,
+                    columnNameMapping,
+                    replace = true
+                )
                 sqlTableOperations.upsertTable(
+                    stream,
+                    columnNameMapping,
                     sourceTableName = tempTableName,
-                    targetTableName = realTableName
+                    targetTableName = realTableName,
                 )
                 sqlTableOperations.dropTable(tempTableName)
                 return
@@ -173,6 +208,8 @@ class DirectLoadTableDedupTruncateStreamLoader(
                         stream.minimumGenerationId
             ) {
                 sqlTableOperations.upsertTable(
+                    stream,
+                    columnNameMapping,
                     sourceTableName = tempTableName,
                     targetTableName = realTableName
                 )
@@ -183,8 +220,10 @@ class DirectLoadTableDedupTruncateStreamLoader(
 
         if (streamFailure == null) {
             val tempTempTable = tempTableName.asTempTable()
-            sqlTableOperations.createTable(stream, tempTempTable, replace = true)
+            sqlTableOperations.createTable(stream, tempTempTable, columnNameMapping, replace = true)
             sqlTableOperations.upsertTable(
+                stream,
+                columnNameMapping,
                 sourceTableName = tempTableName,
                 targetTableName = tempTempTable
             )
