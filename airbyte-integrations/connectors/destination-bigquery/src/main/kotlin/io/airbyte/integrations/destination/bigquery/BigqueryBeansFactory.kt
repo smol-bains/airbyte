@@ -13,6 +13,7 @@ import io.airbyte.cdk.load.command.DestinationConfiguration
 import io.airbyte.cdk.load.orchestration.db.direct_load_table.DefaultDirectLoadTableSqlOperations
 import io.airbyte.cdk.load.orchestration.db.direct_load_table.DirectLoadTableExecutionConfig
 import io.airbyte.cdk.load.orchestration.db.direct_load_table.DirectLoadTableWriter
+import io.airbyte.cdk.load.orchestration.db.direct_load_table.migrations.DefaultDirectLoadTableTempTableNameMigration
 import io.airbyte.cdk.load.orchestration.db.legacy_typing_deduping.TableCatalog
 import io.airbyte.cdk.load.state.SyncManager
 import io.airbyte.cdk.load.task.DestinationTaskLauncher
@@ -67,16 +68,19 @@ class BigqueryBeansFactory {
         streamStateStore: StreamStateStore<DirectLoadTableExecutionConfig>,
     ): DestinationWriter {
         val destinationHandler = BigQueryDatabaseHandler(bigquery, config.datasetLocation.region)
+        val sqlTableOperations =
+            DefaultDirectLoadTableSqlOperations(
+                BigQuerySqlGenerator(config.projectId, config.datasetLocation.region),
+                destinationHandler,
+            )
         return DirectLoadTableWriter(
             names,
             BigqueryDatabaseInitialStatusGatherer(bigquery),
             destinationHandler,
             TODO(),
-            DefaultDirectLoadTableSqlOperations(
-                BigQuerySqlGenerator(config.projectId, config.datasetLocation.region),
-                destinationHandler,
-            ),
+            sqlTableOperations,
             streamStateStore,
+            DefaultDirectLoadTableTempTableNameMigration(TODO(), sqlTableOperations)
         )
     }
 
