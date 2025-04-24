@@ -11,11 +11,17 @@ import io.airbyte.cdk.load.command.DestinationStream
 import io.airbyte.cdk.load.command.Overwrite
 import io.airbyte.cdk.load.orchestration.db.DatabaseHandler
 import io.airbyte.cdk.load.orchestration.db.DatabaseInitialStatusGatherer
+import io.airbyte.cdk.load.orchestration.db.direct_load_table.migrations.DirectLoadTableTempTableNameMigration
 import io.airbyte.cdk.load.orchestration.db.legacy_typing_deduping.TableCatalog
 import io.airbyte.cdk.load.write.DestinationWriter
 import io.airbyte.cdk.load.write.StreamLoader
 import io.airbyte.cdk.load.write.StreamStateStore
 
+/**
+ * @param directLoadTableTempTableNameMigration Iff you are implementing a destination which
+ * previously existed, and used the T+D style of temporary tables (i.e. suffixing the final table
+ * with `_airbyte_tmp`), you MUST provide this object.
+ */
 class DirectLoadTableWriter(
     private val names: TableCatalog,
     private val stateGatherer: DatabaseInitialStatusGatherer<DirectLoadInitialStatus>,
@@ -23,12 +29,15 @@ class DirectLoadTableWriter(
     private val nativeTableOperations: DirectLoadTableNativeOperations,
     private val sqlTableOperations: DirectLoadTableSqlOperations,
     private val streamStateStore: StreamStateStore<DirectLoadTableExecutionConfig>,
+    private val directLoadTableTempTableNameMigration: DirectLoadTableTempTableNameMigration?,
 ) : DestinationWriter {
     private lateinit var initialStatuses: Map<DestinationStream, DirectLoadInitialStatus>
     override suspend fun setup() {
         val namespaces =
             names.values.map { (tableNames, _) -> tableNames.finalTableName!!.namespace }.toSet()
         destinationHandler.createNamespaces(namespaces)
+
+        directLoadTableTempTableNameMigration?.execute(names)
 
         initialStatuses = stateGatherer.gatherInitialStatus(names)
     }

@@ -20,7 +20,7 @@ interface DirectLoadSqlGenerator {
     /**
      * Replace the targetTable with the sourceTable. This is typically something like
      * ```sql
-     * DROP TABLE target;
+     * DROP TABLE IF EXISTS target;
      * ALTER TABLE source RENAME TO target;
      * ```
      */
