@@ -23,6 +23,7 @@ import io.airbyte.cdk.load.orchestration.db.ColumnNameMapping
 import io.airbyte.cdk.load.orchestration.db.DatabaseInitialStatusGatherer
 import io.airbyte.cdk.load.orchestration.db.TableName
 import io.airbyte.cdk.load.orchestration.db.TableNames
+import io.airbyte.cdk.load.orchestration.db.direct_load_table.DirectLoadInitialStatus
 import io.airbyte.cdk.load.orchestration.db.legacy_typing_deduping.AlterTableReport
 import io.airbyte.cdk.load.orchestration.db.legacy_typing_deduping.FinalTableInitialStatus
 import io.airbyte.cdk.load.orchestration.db.legacy_typing_deduping.RawTableInitialStatus
@@ -38,8 +39,9 @@ import java.util.stream.Stream
 
 private val logger = KotlinLogging.logger {}
 
+// TODO fix this class
 class BigqueryDatabaseInitialStatusGatherer(private val bq: BigQuery) :
-    DatabaseInitialStatusGatherer<TypingDedupingDatabaseInitialStatus> {
+    DatabaseInitialStatusGatherer<DirectLoadInitialStatus> {
     private fun findExistingTable(finalTableName: TableName): TableDefinition? {
         val table = bq.getTable(finalTableName.namespace, finalTableName.name)
         return table?.getDefinition()
