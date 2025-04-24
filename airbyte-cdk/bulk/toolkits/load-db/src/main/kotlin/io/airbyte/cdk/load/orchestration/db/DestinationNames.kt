@@ -44,10 +44,14 @@ data class TableName(val namespace: String, val name: String) {
     /**
      * better handling for temp table names - e.g. postgres has a 64-char table name limit, so we
      * want to avoid running into that
+     *
+     * T+D destinations simply appended [TMP_TABLE_SUFFIX] to the table name, and should use
+     * [asOldStyleTempTable] instead
      */
-    fun asTempTable(length: Int = 32): TableName {
-        return copy(name = DigestUtils.sha256Hex(name + TMP_TABLE_SUFFIX).substring(length))
-    }
+    fun asTempTable(length: Int = 32) =
+        copy(name = DigestUtils.sha256Hex(name + TMP_TABLE_SUFFIX).substring(length))
+
+    fun asOldStyleTempTable() = copy(name = name + TMP_TABLE_SUFFIX)
 }
 
 fun TableName?.hasNamingConflictWith(other: TableName?): Boolean {

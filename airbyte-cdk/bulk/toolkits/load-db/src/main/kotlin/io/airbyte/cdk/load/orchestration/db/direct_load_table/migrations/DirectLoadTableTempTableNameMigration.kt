@@ -5,7 +5,6 @@
 package io.airbyte.cdk.load.orchestration.db.direct_load_table.migrations
 
 import io.airbyte.cdk.load.orchestration.db.TableName
-import io.airbyte.cdk.load.orchestration.db.TableNames.Companion.TMP_TABLE_SUFFIX
 import io.airbyte.cdk.load.orchestration.db.direct_load_table.DirectLoadTableSqlOperations
 import io.airbyte.cdk.load.orchestration.db.legacy_typing_deduping.TableCatalog
 import kotlinx.coroutines.coroutineScope
@@ -32,7 +31,7 @@ class DefaultDirectLoadTableTempTableNameMigration(
             names
                 .map { (_, tableNameInfo) ->
                     val realTableName = tableNameInfo.tableNames.finalTableName!!
-                    val oldTempTableName = getOldStyleTempTableName(realTableName)
+                    val oldTempTableName = realTableName.asOldStyleTempTable()
                     val newTempTableName = realTableName.asTempTable()
                     oldTempTableName to newTempTableName
                 }
@@ -49,9 +48,6 @@ class DefaultDirectLoadTableTempTableNameMigration(
             }
         }
     }
-
-    private fun getOldStyleTempTableName(tableName: TableName) =
-        tableName.copy(name = tableName.name + TMP_TABLE_SUFFIX)
 }
 
 interface DirectLoadTableExistenceChecker {
