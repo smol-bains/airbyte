@@ -142,6 +142,7 @@ The connector is restricted by [requests limitation](https://business-api.tiktok
 
 | Version   | Date       | Pull Request                                             | Subject                                                                                                                                                                |
 |:----------|:-----------|:---------------------------------------------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 4.6.3 | 2025-05-04 | [56872](https://github.com/airbytehq/airbyte/pull/56872) | Update dependencies |
 | 4.6.2 | 2024-10-30 | [48003](https://github.com/airbytehq/airbyte/pull/48003) | Add new metrics to ads_reports_daily stream |
 | 4.6.1 | 2025-03-22 | [51959](https://github.com/airbytehq/airbyte/pull/51959) | Update dependencies |
 | 4.6.0 | 2025-03-09 | [55669](https://github.com/airbytehq/airbyte/pull/55669) | Add `Pixels`, `PixelInstantPageEvents`, `PixelEventsStatistics` streams |
