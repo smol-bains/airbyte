@@ -8,11 +8,6 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.transformWhile
 
-fun <T> Flow<T>.takeUntilInclusive(predicate: (T) -> Boolean): Flow<T> = transformWhile { value ->
-    emit(value)
-    !predicate(value)
-}
-
 interface CloseableCoroutine {
     suspend fun close()
 }

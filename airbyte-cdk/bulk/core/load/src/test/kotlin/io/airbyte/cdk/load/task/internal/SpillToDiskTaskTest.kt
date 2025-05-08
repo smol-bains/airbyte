@@ -22,7 +22,6 @@ import io.airbyte.cdk.load.message.StreamRecordEvent
 import io.airbyte.cdk.load.state.FlushStrategy
 import io.airbyte.cdk.load.state.ReservationManager
 import io.airbyte.cdk.load.state.Reserved
-import io.airbyte.cdk.load.state.TimeWindowTrigger
 import io.airbyte.cdk.load.task.DestinationTaskLauncher
 import io.airbyte.cdk.load.task.implementor.FileAggregateMessage
 import io.mockk.coEvery

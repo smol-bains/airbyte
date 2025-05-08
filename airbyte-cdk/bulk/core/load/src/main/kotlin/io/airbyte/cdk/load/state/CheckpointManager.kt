@@ -41,13 +41,6 @@ class CheckpointManager<T>(
     val syncManager: SyncManager,
     val outputConsumer: suspend (T) -> Unit,
     val timeProvider: TimeProvider,
-    /**
-     * Whether or not we are using the new style checkpoint-by-id or the old style
-     * checkpoint-by-range.
-     *
-     * TODO: Remove this once everything is using the new interface.
-     */
-    @Named("checkpointById") val checkpointById: Boolean
 ) {
     private val log = KotlinLogging.logger {}
     private val flushLock = Mutex()
@@ -68,7 +61,6 @@ class CheckpointManager<T>(
 
     init {
         lastFlushTimeMs.set(timeProvider.currentTimeMillis())
-        log.info { "Checkpoint manager initialized with checkpointById: $checkpointById" }
     }
 
     suspend fun addStreamCheckpoint(
@@ -154,13 +146,9 @@ class CheckpointManager<T>(
             val head = globalCheckpoints.peek()
             val allStreamsPersisted =
                 head.streamIndexes.all { (stream, index) ->
-                    if (!checkpointById) {
-                        syncManager.getStreamManager(stream).areRecordsPersistedUntil(index)
-                    } else {
-                        syncManager
-                            .getStreamManager(stream)
-                            .areRecordsPersistedUntilCheckpoint(CheckpointId(index.toInt()))
-                    }
+                    syncManager
+                        .getStreamManager(stream)
+                        .areRecordsPersistedUntilCheckpoint(CheckpointId(index.toInt()))
                 }
             if (allStreamsPersisted) {
                 log.info { "Flushing global checkpoint with stream indexes: ${head.streamIndexes}" }
@@ -188,12 +176,7 @@ class CheckpointManager<T>(
             }
             while (true) {
                 val (nextIndex, nextMessage) = streamCheckpoints.peek() ?: break
-                val persisted =
-                    if (checkpointById) {
-                        manager.areRecordsPersistedUntilCheckpoint(CheckpointId(nextIndex.toInt()))
-                    } else {
-                        manager.areRecordsPersistedUntil(nextIndex)
-                    }
+                val persisted = manager.areRecordsPersistedUntilCheckpoint(CheckpointId(nextIndex.toInt()))
                 if (persisted) {
 
                     log.info {

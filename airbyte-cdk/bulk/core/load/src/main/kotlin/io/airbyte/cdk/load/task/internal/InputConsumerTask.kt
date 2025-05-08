@@ -72,7 +72,6 @@ class DefaultInputConsumerTask(
         MessageQueueSupplier<DestinationStream.Descriptor, Reserved<DestinationStreamEvent>>,
     val checkpointQueue: QueueWriter<Reserved<CheckpointMessageWrapped>>,
     private val syncManager: SyncManager,
-    private val destinationTaskLauncher: DestinationTaskLauncher,
     @Named("fileMessageQueue")
     private val fileTransferQueue: MessageQueue<FileTransferQueueMessage>,
 
@@ -89,54 +88,6 @@ class DefaultInputConsumerTask(
     override val terminalCondition: TerminalCondition = OnSyncFailureOnly
 
     private val unopenedStreams = ConcurrentHashMap(catalog.streams.associateBy { it.descriptor })
-
-    private suspend fun handleRecord(
-        reserved: Reserved<DestinationStreamAffinedMessage>,
-        sizeBytes: Long
-    ) {
-        val stream = reserved.value.stream
-        val manager = syncManager.getStreamManager(stream.descriptor)
-        val recordQueue = recordQueueSupplier.get(stream.descriptor)
-        when (val message = reserved.value) {
-            is DestinationRecord -> {
-                val wrapped =
-                    StreamRecordEvent(
-                        index = manager.incrementReadCount(),
-                        sizeBytes = sizeBytes,
-                        payload = message.asRecordSerialized()
-                    )
-                recordQueue.publish(reserved.replace(wrapped))
-            }
-            is DestinationRecordStreamComplete -> {
-                reserved.release() // safe because multiple calls conflate
-                val wrapped = StreamEndEvent(index = manager.markEndOfStream(true))
-                log.info { "Read COMPLETE for stream $stream" }
-                recordQueue.publish(reserved.replace(wrapped))
-                recordQueue.close()
-            }
-            is DestinationRecordStreamIncomplete -> {
-                reserved.release() // safe because multiple calls conflate
-                val wrapped = StreamEndEvent(index = manager.markEndOfStream(false))
-                log.info { "Read INCOMPLETE for stream $stream" }
-                recordQueue.publish(reserved.replace(wrapped))
-                recordQueue.close()
-            }
-            is DestinationFile -> {
-                throw NotImplementedError(
-                    "File transfer should only run on the new pipeline (file)."
-                )
-            }
-            is DestinationFileStreamComplete -> {
-                throw NotImplementedError(
-                    "File transfer should only run on the new pipeline (end-of-stream)."
-                )
-            }
-            is DestinationFileStreamIncomplete ->
-                throw NotImplementedError(
-                    "File transfer should only run on the new pipeline (incomplete)."
-                )
-        }
-    }
 
     private suspend fun handleRecordForPipeline(
         reserved: Reserved<DestinationStreamAffinedMessage>,
@@ -271,11 +222,7 @@ class DefaultInputConsumerTask(
                     when (val message = reserved.value) {
                         /* If the input message represents a record. */
                         is DestinationStreamAffinedMessage -> {
-                            if (loadPipeline != null) {
-                                handleRecordForPipeline(reserved.replace(message))
-                            } else {
-                                handleRecord(reserved.replace(message), sizeBytes)
-                            }
+                            handleRecordForPipeline(reserved.replace(message))
                         }
                         is CheckpointMessage ->
                             handleCheckpoint(reserved.replace(message), sizeBytes)
@@ -339,7 +286,6 @@ class DefaultInputConsumerTaskFactory(
             recordQueueSupplier,
             checkpointQueue,
             syncManager,
-            destinationTaskLauncher,
             fileTransferQueue,
 
             // Required by new interface
