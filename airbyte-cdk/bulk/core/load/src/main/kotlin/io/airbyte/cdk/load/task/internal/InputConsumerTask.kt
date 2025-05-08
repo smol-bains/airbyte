@@ -20,6 +20,9 @@ import io.airbyte.cdk.load.message.DestinationRecordStreamComplete
 import io.airbyte.cdk.load.message.DestinationRecordStreamIncomplete
 import io.airbyte.cdk.load.message.DestinationStreamAffinedMessage
 import io.airbyte.cdk.load.message.DestinationStreamEvent
+import io.airbyte.cdk.load.message.FileTransferQueueEndOfStream
+import io.airbyte.cdk.load.message.FileTransferQueueMessage
+import io.airbyte.cdk.load.message.FileTransferQueueRecord
 import io.airbyte.cdk.load.message.GlobalCheckpoint
 import io.airbyte.cdk.load.message.GlobalCheckpointWrapped
 import io.airbyte.cdk.load.message.MessageQueue
@@ -44,7 +47,6 @@ import io.airbyte.cdk.load.task.DestinationTaskLauncher
 import io.airbyte.cdk.load.task.OnSyncFailureOnly
 import io.airbyte.cdk.load.task.Task
 import io.airbyte.cdk.load.task.TerminalCondition
-import io.airbyte.cdk.load.task.implementor.FileTransferQueueMessage
 import io.airbyte.cdk.load.util.use
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.micronaut.context.annotation.Secondary
@@ -123,24 +125,19 @@ class DefaultInputConsumerTask(
                 recordQueue.close()
             }
             is DestinationFile -> {
-                val index = manager.incrementReadCount()
-                // destinationTaskLauncher.handleFile(stream, message, index)
-                fileTransferQueue.publish(
-                    FileTransferQueueMessage(stream.descriptor, message, index)
+                throw NotImplementedError(
+                    "File transfer should only run on the new pipeline (file)."
                 )
             }
             is DestinationFileStreamComplete -> {
-                reserved.release() // safe because multiple calls conflate
-                manager.markEndOfStream(true)
-                val envelope =
-                    BatchEnvelope(
-                        SimpleBatch(BatchState.COMPLETE),
-                        streamDescriptor = message.stream.descriptor,
-                    )
-                destinationTaskLauncher.handleNewBatch(stream.descriptor, envelope)
+                throw NotImplementedError(
+                    "File transfer should only run on the new pipeline (end-of-stream)."
+                )
             }
             is DestinationFileStreamIncomplete ->
-                throw IllegalStateException("File stream $stream failed upstream, cannot continue.")
+                throw NotImplementedError(
+                    "File transfer should only run on the new pipeline (incomplete)."
+                )
         }
     }
 
@@ -188,20 +185,16 @@ class DefaultInputConsumerTask(
             }
             is DestinationFile -> {
                 val index = manager.incrementReadCount()
+                val checkpointId = manager.getCurrentCheckpointId()
                 // destinationTaskLauncher.handleFile(stream, message, index)
                 fileTransferQueue.publish(
-                    FileTransferQueueMessage(stream.descriptor, message, index)
+                    FileTransferQueueRecord(stream, message, index, checkpointId)
                 )
             }
             is DestinationFileStreamComplete -> {
                 reserved.release() // safe because multiple calls conflate
                 manager.markEndOfStream(true)
-                val envelope =
-                    BatchEnvelope(
-                        SimpleBatch(BatchState.COMPLETE),
-                        streamDescriptor = message.stream.descriptor,
-                    )
-                destinationTaskLauncher.handleNewBatch(stream.descriptor, envelope)
+                fileTransferQueue.publish(FileTransferQueueEndOfStream(stream))
             }
             is DestinationFileStreamIncomplete ->
                 throw IllegalStateException("File stream $stream failed upstream, cannot continue.")
