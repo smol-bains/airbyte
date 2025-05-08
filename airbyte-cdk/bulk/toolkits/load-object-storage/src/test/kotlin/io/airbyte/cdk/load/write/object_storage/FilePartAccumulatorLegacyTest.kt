@@ -7,9 +7,7 @@ package io.airbyte.cdk.load.write.object_storage
 import io.airbyte.cdk.load.command.DestinationStream
 import io.airbyte.cdk.load.command.object_storage.ObjectStorageUploadConfiguration
 import io.airbyte.cdk.load.file.object_storage.ObjectStoragePathFactory
-import io.airbyte.cdk.load.message.BatchEnvelope
 import io.airbyte.cdk.load.message.DestinationFile
-import io.airbyte.cdk.load.message.MultiProducerChannel
 import io.airbyte.cdk.load.message.PartitionedQueue
 import io.airbyte.cdk.load.message.PipelineEvent
 import io.airbyte.cdk.load.message.PipelineMessage
@@ -27,7 +25,9 @@ import org.junit.jupiter.api.Test
 class FilePartAccumulatorLegacyTest {
     private val pathFactory: ObjectStoragePathFactory = mockk(relaxed = true)
     private val stream: DestinationStream = mockk(relaxed = true)
-    private val outputQueue: PartitionedQueue<PipelineEvent<ObjectKey, ObjectLoaderPartFormatter.FormattedPart>> = mockk(relaxed = true)
+    private val outputQueue:
+        PartitionedQueue<PipelineEvent<ObjectKey, ObjectLoaderPartFormatter.FormattedPart>> =
+        mockk(relaxed = true)
     private val loadStrategy: ObjectLoader = mockk(relaxed = true)
 
     private val filePartAccumulatorLegacy =
@@ -52,9 +52,12 @@ class FilePartAccumulatorLegacyTest {
 
         filePartAccumulatorLegacy.handleFileMessage(fileMessage, index, CheckpointId(0))
 
-        coVerify(exactly = 1) { outputQueue.publish(match {
-            (it as PipelineMessage).checkpointCounts == mapOf(CheckpointId(0) to 1L)
-        }, 0) }
+        coVerify(exactly = 1) {
+            outputQueue.publish(
+                match { (it as PipelineMessage).checkpointCounts == mapOf(CheckpointId(0) to 1L) },
+                0
+            )
+        }
     }
 
     @Test
